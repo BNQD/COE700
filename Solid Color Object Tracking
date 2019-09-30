@@ -1,0 +1,91 @@
+import cv2
+import numpy as np
+import imutils
+import pandas
+
+#Currently prints out the center of the solid coloured object
+
+def main():
+    cap = cv2.VideoCapture(0)
+
+    if cap.isOpened():
+        ret, frame = cap.read()
+    else:
+        ret = False
+
+    while ret:
+        ret, frame = cap.read()
+        blurred = cv2.GaussianBlur(frame, (11, 11), 0)
+        hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV) #Hue saturation value
+
+        #Green
+        #low = np.array([40, 50, 50])
+        #high = np.array([80, 255, 255])
+
+        # Blue
+        low = np.array([110, 50, 50])
+        high = np.array([140, 255, 255])
+
+        #Red
+        #low = np.array([140, 150, 50])
+        #high = np.array([180, 255, 255])
+
+        #Yellow
+        #low = np.array([20, 100, 100])
+        #high = np.array([30, 255, 255])
+
+        image_mask = cv2.inRange(hsv, low, high)
+        image_mask = cv2.erode(image_mask, None, iterations=6)
+        image_mask = cv2.dilate(image_mask, None, iterations=2)
+        output = cv2.bitwise_and(frame, frame, mask = image_mask)
+
+        cnts = cv2.findContours(image_mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        cnts = imutils.grab_contours(cnts)
+
+        radius = None
+        if len(cnts) > 0:
+            # find the largest contour in the mask, then use
+            # it to compute the minimum enclosing circle and
+            # centroid
+            c = max(cnts, key=cv2.contourArea)
+            prev_radius = radius
+            ((x, y), radius) = cv2.minEnclosingCircle(c)
+
+
+            M = cv2.moments(c)
+            center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
+
+
+            # only proceed if the radius meets a minimum size
+            if radius > 10:
+                # draw the circle and centroid on the frame,
+                # then update the list of tracked points
+                cv2.circle(frame, (int(x), int(y)), int(radius),
+                           (0, 255, 255), 2)
+                cv2.circle(frame, center, 5, (0, 0, 255), -1)
+                print (center)
+            else:
+                center = None
+
+
+        cv2.imshow("Original", frame)
+        cv2.imshow("Mask", image_mask)
+        cv2.imshow("Output", output)
+
+
+        for r_index, row in enumerate(image_mask):
+            for c_index, col in enumerate(row):
+                #print (r_index, c_index)
+                pass
+
+
+        if cv2.waitKey(1) == 27: #exit on ESC
+            break
+
+    cv2.destroyAllWindows()
+    cap.release()
+
+if __name__ == "__main__":
+    main()
+
+
