@@ -3,8 +3,6 @@ import numpy as np
 import imutils
 import pandas
 
-#Currently prints out the center of the solid coloured object
-
 def main():
     cap = cv2.VideoCapture(0)
 
@@ -71,13 +69,6 @@ def main():
         cv2.imshow("Original", frame)
         cv2.imshow("Mask", image_mask)
         cv2.imshow("Output", output)
-
-
-        for r_index, row in enumerate(image_mask):
-            for c_index, col in enumerate(row):
-                #print (r_index, c_index)
-                pass
-
 
         if cv2.waitKey(1) == 27: #exit on ESC
             break
