@@ -4,14 +4,19 @@ import imutils
 from queue import Queue
 from time import sleep
 from statistics import mean
-
 import pandas
 
-
-fps = 10;
+fps = 30;
 time_saved = 2 #5 seconds
+vals = []
+reset_time = 2 #Number of seconds between instructions -- To be removed after instructions added for robot movement
+
+x_threshold = 5 #Should be calculated based on fps and time_saved
+y_threshold = 2.5 #Should be calculated based on fps and time_saved
+
 
 def main():
+    center = None
     cap = cv2.VideoCapture(0)
 
     if cap.isOpened():
@@ -20,75 +25,90 @@ def main():
         ret = False
 
     while ret:
+        #Limit to a certain fps
         sleep(1/fps);
+
         ret, frame = cap.read()
         blurred = cv2.GaussianBlur(frame, (11, 11), 0)
         hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)  # Hue saturation value
 
-        low = np.array([75, 100, 100])
+        #Cyan colour to match glove
+        low = np.array([75, 120, 120])
         high = np.array([100, 255, 255])
 
+        #Take region of video which matches low/high range of specified colour
         image_mask = cv2.inRange(hsv, low, high)
+
+        #--Not very needed
         #image_mask = cv2.erode(image_mask, None, iterations=6)
         #image_mask = cv2.dilate(image_mask, None, iterations=4)
+
         output = cv2.bitwise_and(frame, frame, mask=image_mask)
 
+        ###
+        #Finding largest contour of the specified colour
+        ###
         cnts = cv2.findContours(image_mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         cnts = imutils.grab_contours(cnts)
 
         radius = None
         if len(cnts) > 0:
             c = max(cnts, key=cv2.contourArea)
-            prev_radius = radius
             ((x, y), radius) = cv2.minEnclosingCircle(c)
             M = cv2.moments(c)
             try:
                 center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
             except:
                 pass
-            if radius > 10:
+
+            #Min radius of the contour
+            if radius > 20:
                 cv2.circle(frame, (int(x), int(y)), int(radius),
                            (0, 255, 255), 2)
                 cv2.circle(frame, center, 5, (0, 0, 255), -1)
-                print(center, radius)
+                #print(center, radius)
             else:
+                #In the case that contour was not found -- Reset
                 center = None
+                del vals[:]
+
         if (center is not None):
-            x_list = y_list = radius_list = [] #5 Seconds
-            x_list.append(center[0]);
-            y_list.append(center[1]);
-            radius_list.append(radius);
+            if (len(vals) > fps * time_saved): #Limit center arrays to fps * time_saved
+                temp_flag = 0;
+                if (x_average > x_threshold):
+                    print("right");
+                    sleep(reset_time);
+                    del vals[:]
 
-            np_lists = np.array([x_list, y_list, radius_list]);
+                elif (x_average < -x_threshold):
+                    print("left");
+                    sleep(reset_time);
+                    del vals[:]
 
-            average_x_change = mean(np_lists[1][:-1]-np_lists[1][1:]);
-            print(average_x_change)
+                elif (y_average < -y_threshold):
+                    print ("up")
+                    sleep(reset_time)
+                    del vals[:]
 
-            """
-            x_queue.put(center[0]);
-            y_queue.put(center[1]);
-            radius_queue.put(radius);
+                elif (y_average > y_threshold):
+                    print("down");
+                    sleep(reset_time);
+                    del vals[:]
 
-            temp_x = x_queue;
-            x_queue.get();
-            temp_y = y_queue;
-            y_queue.get();
-            temp_radius = radius_queue;
-            radius_queue.get();
+                else:
+                    del vals[0]
+                print(x_average, y_average)
+            try:
+                vals.append([center[0], center[1], round(radius, 2)])
+                np_lists = np.asarray(vals);
+                x_average = (np.mean(np_lists[:-1, 0] - np_lists[1:, 0]));
+                y_average = (np.mean(np_lists[:-1, 1] - np_lists[1:, 1]))
 
-            x_queue_diff = mean(temp_x[0:-1] - x_queue)
-            print(x_queue_diff)
-            
-            """
-        #Take  queue [i] - queue [i+1] and average and then determine some sorta threshold
-
-
+            except:
+                pass
         #After averaging, take the one with larger value - Use radius to scale values
 
 
-        #After gesture recognized reset queue and repeat
-
-        #q.put
         cv2.imshow("Original", frame)
         cv2.imshow("Mask", image_mask)
         cv2.imshow("Output", output)
