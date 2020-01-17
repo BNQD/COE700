@@ -1,7 +1,15 @@
 import cv2
 import numpy as np
 import imutils
+from queue import Queue
+from time import sleep
+from statistics import mean
+
 import pandas
+
+
+fps = 10;
+time_saved = 2 #5 seconds
 
 def main():
     cap = cv2.VideoCapture(0)
@@ -12,71 +20,85 @@ def main():
         ret = False
 
     while ret:
+        sleep(1/fps);
         ret, frame = cap.read()
         blurred = cv2.GaussianBlur(frame, (11, 11), 0)
-        hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV) #Hue saturation value
+        hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)  # Hue saturation value
 
-        #Green
-        #low = np.array([40, 50, 50])
-        #high = np.array([80, 255, 255])
-
-        # Blue
-        low = np.array([110, 50, 50])
-        high = np.array([140, 255, 255])
-
-        #Red
-        #low = np.array([140, 150, 50])
-        #high = np.array([180, 255, 255])
-
-        #Yellow
-        #low = np.array([20, 100, 100])
-        #high = np.array([30, 255, 255])
+        low = np.array([75, 100, 100])
+        high = np.array([100, 255, 255])
 
         image_mask = cv2.inRange(hsv, low, high)
-        image_mask = cv2.erode(image_mask, None, iterations=6)
-        image_mask = cv2.dilate(image_mask, None, iterations=2)
-        output = cv2.bitwise_and(frame, frame, mask = image_mask)
+        #image_mask = cv2.erode(image_mask, None, iterations=6)
+        #image_mask = cv2.dilate(image_mask, None, iterations=4)
+        output = cv2.bitwise_and(frame, frame, mask=image_mask)
 
         cnts = cv2.findContours(image_mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         cnts = imutils.grab_contours(cnts)
 
         radius = None
         if len(cnts) > 0:
-            # find the largest contour in the mask, then use
-            # it to compute the minimum enclosing circle and
-            # centroid
             c = max(cnts, key=cv2.contourArea)
             prev_radius = radius
             ((x, y), radius) = cv2.minEnclosingCircle(c)
-
-
             M = cv2.moments(c)
-            center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
-
-
-            # only proceed if the radius meets a minimum size
+            try:
+                center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
+            except:
+                pass
             if radius > 10:
-                # draw the circle and centroid on the frame,
-                # then update the list of tracked points
                 cv2.circle(frame, (int(x), int(y)), int(radius),
                            (0, 255, 255), 2)
                 cv2.circle(frame, center, 5, (0, 0, 255), -1)
-                print (center)
+                print(center, radius)
             else:
                 center = None
+        if (center is not None):
+            x_list = y_list = radius_list = [] #5 Seconds
+            x_list.append(center[0]);
+            y_list.append(center[1]);
+            radius_list.append(radius);
+
+            np_lists = np.array([x_list, y_list, radius_list]);
+
+            average_x_change = mean(np_lists[1][:-1]-np_lists[1][1:]);
+            print(average_x_change)
+
+            """
+            x_queue.put(center[0]);
+            y_queue.put(center[1]);
+            radius_queue.put(radius);
+
+            temp_x = x_queue;
+            x_queue.get();
+            temp_y = y_queue;
+            y_queue.get();
+            temp_radius = radius_queue;
+            radius_queue.get();
+
+            x_queue_diff = mean(temp_x[0:-1] - x_queue)
+            print(x_queue_diff)
+            
+            """
+        #Take  queue [i] - queue [i+1] and average and then determine some sorta threshold
 
 
+        #After averaging, take the one with larger value - Use radius to scale values
+
+
+        #After gesture recognized reset queue and repeat
+
+        #q.put
         cv2.imshow("Original", frame)
         cv2.imshow("Mask", image_mask)
         cv2.imshow("Output", output)
 
-        if cv2.waitKey(1) == 27: #exit on ESC
+        if cv2.waitKey(1) == 27:  # exit on ESC
             break
 
     cv2.destroyAllWindows()
     cap.release()
 
+
 if __name__ == "__main__":
     main()
-
-
