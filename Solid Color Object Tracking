@@ -5,9 +5,10 @@ from queue import Queue
 from time import sleep
 from statistics import mean
 import pandas
+import math
 
 fps = 30;
-movement_flag = 0;
+
 time_saved = 0.5
 stable_counter = 0;
 #5 seconds
@@ -15,12 +16,13 @@ vals = []
 reset_time = 0.5 #Number of seconds between instructions -- To be removed after instructions added for robot movement
 
 x_threshold = 10 #Should be calculated based on fps and time_saved
-y_threshold = 8 #Should be calculated based on fps and time_saved
+y_threshold = 10 #Should be calculated based on fps and time_saved
 
 
 def main():
     center = None
     cap = cv2.VideoCapture(0)
+    movement_flag = 0;
 
     if cap.isOpened():
         ret, frame = cap.read()
@@ -36,19 +38,15 @@ def main():
         hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)  # Hue saturation value
 
         #Cyan colour to match glove
-        low = np.array([80, 100, 100])
+        low = np.array([75, 120, 120])
         high = np.array([100, 255, 255])
-
-        #Skin Colour
-        #low = np.array([0, 50, 80])
-        #high = np.array([150, 255, 255])
 
         #Take region of video which matches low/high range of specified colour
         image_mask = cv2.inRange(hsv, low, high)
 
         #--Not very needed
-        image_mask = cv2.erode(image_mask, None, iterations=2)
-        image_mask = cv2.dilate(image_mask, None, iterations=2)
+        #image_mask = cv2.erode(image_mask, None, iterations=6)
+        #image_mask = cv2.dilate(image_mask, None, iterations=4)
 
         output = cv2.bitwise_and(frame, frame, mask=image_mask)
 
@@ -58,9 +56,12 @@ def main():
         cnts = cv2.findContours(image_mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         cnts = imutils.grab_contours(cnts)
 
+
+
         radius = None
         if len(cnts) > 0:
             c = max(cnts, key=cv2.contourArea)
+
             ((x, y), radius) = cv2.minEnclosingCircle(c)
             M = cv2.moments(c)
             try:
@@ -81,50 +82,135 @@ def main():
 
         if (center is not None):
             if (len(vals) > fps * time_saved): #Limit center arrays to fps * time_saved
-                print("test")
+                temp_flag = 0;
+
                 if (x_average > x_threshold or x < 50):
                     print("right");
-                    center = None;
-                    sleep(reset_time);
-                    del vals[:]
+
+                    movement_flag = 1
 
                 elif (x_average < -x_threshold or x > 580):
                     print("left");
-                    center = None;
-                    sleep(reset_time);
-                    del vals[:]
+                    movement_flag = 1
 
-                elif (y_average < -y_threshold or y < 100):
-                    print ("down")
-                    center = None;
-                    sleep(reset_time)
-                    del vals[:]
+                elif (y_average < -y_threshold or y > 400):
+                    print("down")
+                    movement_flag = 1
 
-                elif (y_average > y_threshold or y > 380):
+                elif (y_average > y_threshold or y < 50):
                     print("up");
-                    center = None;
-                    sleep(reset_time);
-                    del vals[:]
+                    movement_flag = 1
 
                 else:
                     del vals[0]
-                print(vals);
-                #print(x_average, y_average, radius)
-                #print(x, y, radius);
+
+                if (movement_flag):
+                    center = None;
+                    sleep(reset_time);
+                    vals.clear();
+                    movement_flag = 0;
+
+
+                print (x, y)
+                #print(x_average, y_average)
+                ##################
+                try:
+                    roi = frame[math.floor(x-100):math.floor(x+100), math.floor(y-100):math.floor(y+100)]
+                    # approx the contour a little
+                    epsilon = 0.0005 * cv2.arcLength(c, True)
+                    approx = cv2.approxPolyDP(c, epsilon, True)
+
+                    # make convex hull around hand
+                    hull = cv2.convexHull(c)
+
+                    # define area of hull and area of hand
+                    areahull = cv2.contourArea(hull)
+                    areacnt = cv2.contourArea(c)
+
+                    # find the percentage of area not covered by hand in convex hull
+                    arearatio = ((areahull - areacnt) / areacnt) * 100
+
+                    # find the defects in convex hull with respect to hand
+                    hull = cv2.convexHull(approx, returnPoints=False)
+                    defects = cv2.convexityDefects(approx, hull)
+
+                    # l = no. of defects
+                    l = 0
+
+                    # code for finding no. of defects due to fingers
+                    for i in range(defects.shape[0]):
+                        s, e, f, d = defects[i, 0]
+                        start = tuple(approx[s][0])
+                        end = tuple(approx[e][0])
+                        far = tuple(approx[f][0])
+                        pt = (100, 180)
+
+                        # find length of all sides of triangle
+                        a = math.sqrt((end[0] - start[0]) ** 2 + (end[1] - start[1]) ** 2)
+                        b = math.sqrt((far[0] - start[0]) ** 2 + (far[1] - start[1]) ** 2)
+                        c = math.sqrt((end[0] - far[0]) ** 2 + (end[1] - far[1]) ** 2)
+                        s = (a + b + c) / 2
+                        ar = math.sqrt(s * (s - a) * (s - b) * (s - c))
+
+                        # distance between point and convex hull
+                        d = (2 * ar) / a
+
+                        # apply cosine rule here
+                        angle = math.acos((b ** 2 + c ** 2 - a ** 2) / (2 * b * c)) * 57
+
+                        # ignore angles > 90 and ignore points very close to convex hull(they generally come due to noise)
+                        if angle <= 90 and d > 30:
+                            l += 1
+                            cv2.circle(roi, far, 3, [255, 0, 0], -1)
+
+                        # draw lines around hand
+                        cv2.line(roi, start, end, [0, 255, 0], 2)
+
+                    l += 1
+
+                    # display corresponding gestures which are in their ranges
+                    font = cv2.FONT_HERSHEY_SIMPLEX
+                    if l == 1:
+                        if areacnt < 2000:
+                            cv2.putText(frame, 'Put hand in the box', (0, 50), font, 2, (0, 0, 255), 3, cv2.LINE_AA)
+                        else:
+                            if arearatio < 12:
+                                cv2.putText(frame, '0', (0, 50), font, 2, (0, 0, 255), 3, cv2.LINE_AA)
+
+                            else:
+                                cv2.putText(frame, '1', (0, 50), font, 2, (0, 0, 255), 3, cv2.LINE_AA)
+
+                    elif l == 2:
+                        cv2.putText(frame, '2', (0, 50), font, 2, (0, 0, 255), 3, cv2.LINE_AA)
+
+                    elif l == 3:
+                        cv2.putText(frame, '3', (0, 50), font, 2, (0, 0, 255), 3, cv2.LINE_AA)
+
+                    elif l == 4:
+                        cv2.putText(frame, '4', (0, 50), font, 2, (0, 0, 255), 3, cv2.LINE_AA)
+
+                    elif l == 5:
+                        cv2.putText(frame, '5', (0, 50), font, 2, (0, 0, 255), 3, cv2.LINE_AA)
+
+                    elif l == 6:
+                        cv2.putText(frame, 'reposition', (0, 50), font, 2, (0, 0, 255), 3, cv2.LINE_AA)
+
+                    else:
+                        cv2.putText(frame, 'reposition', (10, 50), font, 2, (0, 0, 255), 3, cv2.LINE_AA)
+                except Exception as e:
+                    pass
+                ###################
+
+
+
             try:
-                stable_counter = 0;
                 vals.append([center[0], center[1], round(radius, 2)])
                 np_lists = np.asarray(vals);
                 x_average = (np.mean(np_lists[:-1, 0] - np_lists[1:, 0]));
                 y_average = (np.mean(np_lists[:-1, 1] - np_lists[1:, 1]))
-                #cropped_img = output[round(center[1] - radius):round(center[1] + radius),
-                #              round(center[0] - radius):round(center[0] + radius)];
-                #cv2.imshow("Cropped", cropped_img)
 
             except:
                 pass
-
-
         #After averaging, take the one with larger value - Use radius to scale values
 
 
