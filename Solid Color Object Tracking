@@ -7,12 +7,15 @@ from statistics import mean
 import pandas
 
 fps = 30;
-time_saved = 2 #5 seconds
+movement_flag = 0;
+time_saved = 0.5
+stable_counter = 0;
+#5 seconds
 vals = []
-reset_time = 2 #Number of seconds between instructions -- To be removed after instructions added for robot movement
+reset_time = 0.5 #Number of seconds between instructions -- To be removed after instructions added for robot movement
 
-x_threshold = 5 #Should be calculated based on fps and time_saved
-y_threshold = 2.5 #Should be calculated based on fps and time_saved
+x_threshold = 10 #Should be calculated based on fps and time_saved
+y_threshold = 8 #Should be calculated based on fps and time_saved
 
 
 def main():
@@ -33,15 +36,19 @@ def main():
         hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)  # Hue saturation value
 
         #Cyan colour to match glove
-        low = np.array([75, 120, 120])
+        low = np.array([80, 100, 100])
         high = np.array([100, 255, 255])
+
+        #Skin Colour
+        #low = np.array([0, 50, 80])
+        #high = np.array([150, 255, 255])
 
         #Take region of video which matches low/high range of specified colour
         image_mask = cv2.inRange(hsv, low, high)
 
         #--Not very needed
-        #image_mask = cv2.erode(image_mask, None, iterations=6)
-        #image_mask = cv2.dilate(image_mask, None, iterations=4)
+        image_mask = cv2.erode(image_mask, None, iterations=2)
+        image_mask = cv2.dilate(image_mask, None, iterations=2)
 
         output = cv2.bitwise_and(frame, frame, mask=image_mask)
 
@@ -74,38 +81,50 @@ def main():
 
         if (center is not None):
             if (len(vals) > fps * time_saved): #Limit center arrays to fps * time_saved
-                temp_flag = 0;
-                if (x_average > x_threshold):
+                print("test")
+                if (x_average > x_threshold or x < 50):
                     print("right");
+                    center = None;
                     sleep(reset_time);
                     del vals[:]
 
-                elif (x_average < -x_threshold):
+                elif (x_average < -x_threshold or x > 580):
                     print("left");
+                    center = None;
                     sleep(reset_time);
                     del vals[:]
 
-                elif (y_average < -y_threshold):
-                    print ("up")
+                elif (y_average < -y_threshold or y < 100):
+                    print ("down")
+                    center = None;
                     sleep(reset_time)
                     del vals[:]
 
-                elif (y_average > y_threshold):
-                    print("down");
+                elif (y_average > y_threshold or y > 380):
+                    print("up");
+                    center = None;
                     sleep(reset_time);
                     del vals[:]
 
                 else:
                     del vals[0]
-                print(x_average, y_average)
+                print(vals);
+                #print(x_average, y_average, radius)
+                #print(x, y, radius);
             try:
+                stable_counter = 0;
                 vals.append([center[0], center[1], round(radius, 2)])
                 np_lists = np.asarray(vals);
                 x_average = (np.mean(np_lists[:-1, 0] - np_lists[1:, 0]));
                 y_average = (np.mean(np_lists[:-1, 1] - np_lists[1:, 1]))
+                #cropped_img = output[round(center[1] - radius):round(center[1] + radius),
+                #              round(center[0] - radius):round(center[0] + radius)];
+                #cv2.imshow("Cropped", cropped_img)
 
             except:
                 pass
+
+
         #After averaging, take the one with larger value - Use radius to scale values
 
 
