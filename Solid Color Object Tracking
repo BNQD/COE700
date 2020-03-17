@@ -18,6 +18,21 @@ reset_time = 0.5 #Number of seconds between instructions -- To be removed after 
 x_threshold = 10 #Should be calculated based on fps and time_saved
 y_threshold = 10 #Should be calculated based on fps and time_saved
 
+def direction_check (x_average, x_threshold, y_average, y_threshold, x, y):
+    if (x_average > x_threshold or x < 50):
+        return ("right");
+
+    elif (x_average < -x_threshold or x > 580):
+        return ("left");
+
+    elif (y_average < -y_threshold or y > 400):
+        return ("down")
+
+    elif (y_average > y_threshold or y < 50):
+        return ("up");
+
+    else:
+        return ("none");
 
 def main():
     center = None
@@ -74,7 +89,6 @@ def main():
                 cv2.circle(frame, (int(x), int(y)), int(radius),
                            (0, 255, 255), 2)
                 cv2.circle(frame, center, 5, (0, 0, 255), -1)
-                #print(center, radius)
             else:
                 #In the case that contour was not found -- Reset
                 center = None
@@ -83,41 +97,17 @@ def main():
         if (center is not None):
             if (len(vals) > fps * time_saved): #Limit center arrays to fps * time_saved
                 temp_flag = 0;
+                direction = direction_check(x_average, x_threshold, y_average, y_threshold, x, y);
+                print (direction)
 
-                if (x_average > x_threshold or x < 50):
-                    print("right");
-
-                    movement_flag = 1
-
-                elif (x_average < -x_threshold or x > 580):
-                    print("left");
-                    movement_flag = 1
-
-                elif (y_average < -y_threshold or y > 400):
-                    print("down")
-                    movement_flag = 1
-
-                elif (y_average > y_threshold or y < 50):
-                    print("up");
-                    movement_flag = 1
-
+                if (direction != "none"):
+                    movement_flag = 1;
                 else:
-                    del vals[0]
+                    del vals[0];
 
-                if (movement_flag):
-                    center = None;
-                    sleep(reset_time);
-                    vals.clear();
-                    movement_flag = 0;
-
-
-                print (x, y)
-                #print(x_average, y_average)
-                ##################
                 try:
                     roi = frame[math.floor(x-100):math.floor(x+100), math.floor(y-100):math.floor(y+100)]
-                    # approx the contour a little
-                    epsilon = 0.0005 * cv2.arcLength(c, True)
+                    epsilon = 0.001 * cv2.arcLength(c, True)
                     approx = cv2.approxPolyDP(c, epsilon, True)
 
                     # make convex hull around hand
@@ -204,10 +194,20 @@ def main():
 
 
             try:
-                vals.append([center[0], center[1], round(radius, 2)])
-                np_lists = np.asarray(vals);
-                x_average = (np.mean(np_lists[:-1, 0] - np_lists[1:, 0]));
-                y_average = (np.mean(np_lists[:-1, 1] - np_lists[1:, 1]))
+                if (movement_flag == 0):
+                    vals.append([center[0], center[1], round(radius, 2)])
+                    np_lists = np.asarray(vals);
+                    x_average = (np.mean(np_lists[:-1, 0] - np_lists[1:, 0]));
+                    y_average = (np.mean(np_lists[:-1, 1] - np_lists[1:, 1]))
+                else:
+                    print ("here");
+                    del vals[:];
+                    center = None;
+                    np_lists = np.asarray(vals);
+                    x_average = 0;
+                    y_average = 0;
+                    sleep(reset_time);
+                    movement_flag = 0;
 
             except:
                 pass
