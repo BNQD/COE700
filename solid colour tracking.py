@@ -106,26 +106,15 @@ def main():
                     del vals[0];
 
                 try:
-                    roi = frame[math.floor(x-100):math.floor(x+100), math.floor(y-100):math.floor(y+100)]
                     epsilon = 0.001 * cv2.arcLength(c, True)
                     approx = cv2.approxPolyDP(c, epsilon, True)
-
-                    # make convex hull around hand
-                    hull = cv2.convexHull(c)
-
-                    # define area of hull and area of hand
-                    areahull = cv2.contourArea(hull)
-                    areacnt = cv2.contourArea(c)
-
-                    # find the percentage of area not covered by hand in convex hull
-                    arearatio = ((areahull - areacnt) / areacnt) * 100
 
                     # find the defects in convex hull with respect to hand
                     hull = cv2.convexHull(approx, returnPoints=False)
                     defects = cv2.convexityDefects(approx, hull)
 
                     # l = no. of defects
-                    l = 0
+                    fingers = 0
 
                     # code for finding no. of defects due to fingers
                     for i in range(defects.shape[0]):
@@ -133,7 +122,6 @@ def main():
                         start = tuple(approx[s][0])
                         end = tuple(approx[e][0])
                         far = tuple(approx[f][0])
-                        pt = (100, 180)
 
                         # find length of all sides of triangle
                         a = math.sqrt((end[0] - start[0]) ** 2 + (end[1] - start[1]) ** 2)
@@ -150,12 +138,9 @@ def main():
 
                         # ignore angles > 90 and ignore points very close to convex hull(they generally come due to noise)
                         if angle <= 90 and d > 20:
-                            l += 1
-                            cv2.circle(roi, far, 3, [255, 0, 0], -1)
+                            fingers += 1
 
-                        cv2.line(roi, start, end, [0, 255, 0], 2)
-
-                    l += 1 #Number of fingers
+                    fingers += 1
 
 
                 except Exception as e:
@@ -171,7 +156,6 @@ def main():
                     x_average = (np.mean(np_lists[:-1, 0] - np_lists[1:, 0]));
                     y_average = (np.mean(np_lists[:-1, 1] - np_lists[1:, 1]))
                 else:
-                    print ("here");
                     del vals[:];
                     center = None;
                     np_lists = np.asarray(vals);
