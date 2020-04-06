@@ -4,6 +4,7 @@ import imutils
 from queue import Queue
 from time import sleep
 from statistics import mean
+from collections import Counter
 import pandas
 import math
 
@@ -13,6 +14,7 @@ time_saved = 0.5
 stable_counter = 0;
 #5 seconds
 vals = []
+fingers_array = []
 reset_time = 0.5 #Number of seconds between instructions -- To be removed after instructions added for robot movement
 fingers = 0
 
@@ -138,14 +140,21 @@ def main():
                         angle = math.acos((b ** 2 + c ** 2 - a ** 2) / (2 * b * c))
 
                         # ignore angles > 90 and ignore points very close to convex hull(they generally come due to noise)
-                        if angle <= math.pi/2:
+                        if angle <= math.pi/2 and d>30:
                             fingers += 1
 
                     fingers += 1
+                    fingers_array.append(fingers)
+                    if (len(fingers_array) > fps * time_saved * 2):
+                        del fingers_array[0]
+                    finger_array_count = Counter(fingers_array)
+                    print(finger_array_count.most_common(1))
+
                     #Improvement - take most common number of fingers in last 20 frames as the number of fingers - Movement causes fingers number to change
 
 
                 except Exception as e:
+                    print(e)
                     pass
                 ###################
 
