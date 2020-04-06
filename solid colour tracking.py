@@ -14,6 +14,7 @@ stable_counter = 0;
 #5 seconds
 vals = []
 reset_time = 0.5 #Number of seconds between instructions -- To be removed after instructions added for robot movement
+fingers = 0
 
 x_threshold = 10 #Should be calculated based on fps and time_saved
 y_threshold = 10 #Should be calculated based on fps and time_saved
@@ -98,15 +99,15 @@ def main():
             if (len(vals) > fps * time_saved): #Limit center arrays to fps * time_saved
                 temp_flag = 0;
                 direction = direction_check(x_average, x_threshold, y_average, y_threshold, x, y);
-                print (direction)
 
                 if (direction != "none"):
                     movement_flag = 1;
+                    print (direction)
                 else:
                     del vals[0];
 
                 try:
-                    epsilon = 0.001 * cv2.arcLength(c, True)
+                    epsilon = 0.0005 * cv2.arcLength(c, True)
                     approx = cv2.approxPolyDP(c, epsilon, True)
 
                     # find the defects in convex hull with respect to hand
@@ -133,14 +134,15 @@ def main():
                         # distance between point and convex hull
                         d = (2 * ar) / a
 
-                        # cosine rule
-                        angle = math.acos((b ** 2 + c ** 2 - a ** 2) / (2 * b * c)) * 57
+                        # apply cosine rule here
+                        angle = math.acos((b ** 2 + c ** 2 - a ** 2) / (2 * b * c))
 
                         # ignore angles > 90 and ignore points very close to convex hull(they generally come due to noise)
-                        if angle <= 90 and d > 20:
+                        if angle <= math.pi/2:
                             fingers += 1
 
                     fingers += 1
+                    #Improvement - take most common number of fingers in last 20 frames as the number of fingers - Movement causes fingers number to change
 
 
                 except Exception as e:
@@ -158,7 +160,6 @@ def main():
                 else:
                     del vals[:];
                     center = None;
-                    np_lists = np.asarray(vals);
                     x_average = 0;
                     y_average = 0;
                     sleep(reset_time);
@@ -166,7 +167,6 @@ def main():
 
             except:
                 pass
-        #After averaging, take the one with larger value - Use radius to scale values
 
 
         cv2.imshow("Original", frame)
